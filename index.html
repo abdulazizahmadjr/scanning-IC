@@ -1,193 +1,127 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>QC Barcode Pro</title>
-<script src="https://unpkg.com/html5-qrcode"></script>
-
-<style>
-body{
-    font-family: Arial;
-    background:#f4f6f9;
-    text-align:center;
-    font-size:18px;
-}
-.container{
-    max-width:500px;
-    margin:auto;
-    background:white;
-    padding:20px;
-    border-radius:15px;
-    box-shadow:0 5px 15px rgba(0,0,0,0.2);
-}
-input,button{
-    width:100%;
-    padding:12px;
-    margin:8px 0;
-    font-size:18px;
-}
-button{
-    background:#007bff;
-    color:white;
-    border:none;
-    border-radius:8px;
-}
-button:disabled{
-    background:gray;
-}
-#reader{margin-top:10px;}
-table{
-    width:100%;
-    margin-top:15px;
-    border-collapse:collapse;
-    font-size:16px;
-}
-th,td{
-    border:1px solid #ddd;
-    padding:8px;
-}
-.total{
-    font-weight:bold;
-    margin-top:10px;
-    font-size:20px;
-}
-</style>
+  <title>Barcode Scanner QC</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    body { font-family: Arial; text-align:center; padding:20px; }
+    input, button { padding:10px; margin:5px; width:90%; }
+    table { width:100%; margin-top:15px; border-collapse: collapse; }
+    th, td { border:1px solid #ccc; padding:8px; }
+    button.small { width:auto; padding:5px; }
+  </style>
 </head>
 <body>
 
-<div class="container">
+<h2>SCAN BARCODE QC</h2>
 
-<h2>QC SCANNER SYSTEM</h2>
+<input type="text" id="user" placeholder="Nama User">
+<input type="text" id="dn" placeholder="DN / SI">
 
-<div id="loginDiv">
-<input type="text" id="username" placeholder="Nama User">
-<input type="text" id="dnsi" placeholder="DN / SI">
-<button onclick="startApp()">Mulai Scan</button>
-</div>
+<div id="reader" style="width:100%"></div>
 
-<div id="appDiv" style="display:none;">
-<p><b>User:</b> <span id="showUser"></span></p>
-<p><b>DN/SI:</b> <span id="showDN"></span></p>
-
-<div id="reader"></div>
-
-<div class="total">Total Scan: <span id="totalScan">0</span></div>
-
-<button onclick="saveAll()">SAVE (Kirim ke Google Form)</button>
-
+<h3>Hasil Scan:</h3>
 <table>
-<thead>
-<tr>
-<th>No</th>
-<th>Barcode</th>
-<th>Waktu</th>
-</tr>
-</thead>
-<tbody id="tableBody"></tbody>
+  <thead>
+    <tr>
+      <th>No</th>
+      <th>Barcode</th>
+      <th>Edit</th>
+      <th>Delete</th>
+    </tr>
+  </thead>
+  <tbody id="resultTable"></tbody>
 </table>
 
-</div>
-
-</div>
+<button onclick="saveData()">SAVE</button>
+<button onclick="resetForm()">RESET</button>
 
 <script>
+let scannedData = [];
 
-let user="", dn="";
-let data=[];
-let barcodeSet=new Set();
-let lock=false;
-let total=0;
-
-function startApp(){
-    user=document.getElementById("username").value;
-    dn=document.getElementById("dnsi").value;
-
-    if(user==""||dn==""){
-        alert("User dan DN/SI wajib diisi!");
-        return;
-    }
-
-    document.getElementById("showUser").innerText=user;
-    document.getElementById("showDN").innerText=dn;
-
-    document.getElementById("loginDiv").style.display="none";
-    document.getElementById("appDiv").style.display="block";
-
-    startScanner();
+function onScanSuccess(decodedText) {
+  let waktu = new Date().toLocaleString();
+  scannedData.push({ barcode: decodedText, waktu: waktu });
+  renderTable();
 }
 
-function startScanner(){
-    let scanner=new Html5QrcodeScanner("reader",{fps:10,qrbox:250});
-    scanner.render(onScanSuccess);
+function renderTable() {
+  let table = document.getElementById("resultTable");
+  table.innerHTML = "";
+
+  scannedData.forEach((item, index) => {
+    table.innerHTML += `
+      <tr>
+        <td>${index + 1}</td>
+        <td contenteditable="true" oninput="editBarcode(${index}, this.innerText)">
+          ${item.barcode}
+        </td>
+        <td><button class="small" onclick="editFocus(${index})">Edit</button></td>
+        <td><button class="small" onclick="deleteRow(${index})">X</button></td>
+      </tr>
+    `;
+  });
 }
 
-function onScanSuccess(decodedText){
-
-    if(lock) return;
-
-    if(barcodeSet.has(decodedText)){
-        alert("Barcode sudah pernah discan!");
-        return;
-    }
-
-    lock=true;
-
-    let waktu=new Date().toLocaleString();
-
-    barcodeSet.add(decodedText);
-
-    total++;
-    document.getElementById("totalScan").innerText=total;
-
-    data.push({barcode:decodedText,waktu:waktu});
-
-    let row=document.getElementById("tableBody").insertRow();
-    row.insertCell(0).innerHTML=total;
-    row.insertCell(1).innerHTML=decodedText;
-    row.insertCell(2).innerHTML=waktu;
-
-    // GETAR HP
-    if(navigator.vibrate){
-        navigator.vibrate(300);
-    }
-
-    // JEDA 5 DETIK
-    setTimeout(()=>{lock=false;},5000);
+function editBarcode(index, value) {
+  scannedData[index].barcode = value;
 }
 
-function saveAll(){
+function editFocus(index) {
+  alert("Silakan edit langsung pada kolom barcode.");
+}
 
-    if(data.length==0){
-        alert("Belum ada scan!");
-        return;
-    }
+function deleteRow(index) {
+  scannedData.splice(index, 1);
+  renderTable();
+}
 
-    data.forEach(item=>{
+function saveData() {
+  let user = document.getElementById("user").value;
+  let dn = document.getElementById("dn").value;
 
-        let formURL="https://docs.google.com/forms/d/e/1FAIpQLScHVUa6eQf4U7DDvBzGZB58Z1TgB_FlYWfb_4_CjMwuq56Hiw/formResponse";
+  if (!user || !dn) {
+    alert("Nama dan DN harus diisi!");
+    return;
+  }
 
-        let formData=new FormData();
-        formData.append("entry.1225395461",user);
-        formData.append("entry.1370295395",dn);
-        formData.append("entry.593393835",item.barcode);
-        formData.append("entry.908329718",item.waktu);
+  scannedData.forEach(item => {
+    let formData = new FormData();
+    
+    formData.append("entry.1225395461", user); // GANTI ENTRY
+    formData.append("entry.1370295395", dn);   // GANTI ENTRY
+    formData.append("entry.593393835", item.barcode); // GANTI ENTRY
+    formData.append("entry.908329718", item.waktu);   // GANTI ENTRY
 
-        fetch(formURL,{
-            method:"POST",
-            mode:"no-cors",
-            body:formData
-        });
-
+    fetch("https://docs.google.com/forms/d/e/1FAIpQLScHVUa6eQf4U7DDvBzGZB58Z1TgB_FlYWfb_4_CjMwuq56Hiw/formResponse", {
+      method: "POST",
+      mode: "no-cors",
+      body: formData
     });
+  });
 
-    alert("Data berhasil dikirim ke Google Form!");
+  alert("Data berhasil dikirim!");
 
-    data=[];
-    barcodeSet.clear();
-    document.getElementById("tableBody").innerHTML="";
-    total=0;
-    document.getElementById("totalScan").innerText="0";
+  // 🔒 LOCK DN & USER
+  document.getElementById("dn").readOnly = true;
+  document.getElementById("user").readOnly = true;
+
+  scannedData = [];
+  renderTable();
 }
 
+function resetForm() {
+  document.getElementById("dn").readOnly = false;
+  document.getElementById("user").readOnly = false;
+  document.getElementById("dn").value = "";
+  document.getElementById("user").value = "";
+  scannedData = [];
+  renderTable();
+}
+
+let scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+scanner.render(onScanSuccess);
 </script>
 
 </body>
