@@ -1,128 +1,253 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Barcode Scanner QC</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://unpkg.com/html5-qrcode"></script>
-  <style>
-    body { font-family: Arial; text-align:center; padding:20px; }
-    input, button { padding:10px; margin:5px; width:90%; }
-    table { width:100%; margin-top:15px; border-collapse: collapse; }
-    th, td { border:1px solid #ccc; padding:8px; }
-    button.small { width:auto; padding:5px; }
-  </style>
-</head>
-<body>
+<title>WAREHOUSE QC SYSTEM</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://unpkg.com/html5-qrcode"></script>
 
-<h2>SCAN BARCODE QC</h2>
+<style>
+body{
+  font-family: 'Segoe UI', sans-serif;
+  background:#f4f6f9;
+  margin:0;
+  padding:20px;
+}
+.container{
+  max-width:700px;
+  margin:auto;
+  background:white;
+  padding:25px;
+  border-radius:12px;
+  box-shadow:0 8px 25px rgba(0,0,0,0.1);
+}
+h2{
+  text-align:center;
+  margin-bottom:20px;
+}
+input{
+  width:100%;
+  padding:12px;
+  margin:8px 0;
+  font-size:18px;
+  border-radius:8px;
+  border:1px solid #ccc;
+}
+button{
+  padding:12px;
+  margin-top:10px;
+  width:100%;
+  font-size:18px;
+  border:none;
+  border-radius:8px;
+  cursor:pointer;
+}
+.primary{background:#007bff;color:white;}
+.success{background:#28a745;color:white;}
+.danger{background:#dc3545;color:white;}
+.warning{background:#ffc107;color:black;}
+table{
+  width:100%;
+  margin-top:15px;
+  border-collapse:collapse;
+}
+th{
+  background:#007bff;
+  color:white;
+}
+th,td{
+  border:1px solid #ddd;
+  padding:8px;
+  text-align:center;
+}
+.status{
+  font-weight:bold;
+  margin-top:10px;
+}
+.total{
+  font-size:20px;
+  font-weight:bold;
+  margin-top:10px;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h2>WAREHOUSE QC BARCODE</h2>
 
 <input type="text" id="user" placeholder="Nama User">
 <input type="text" id="dn" placeholder="DN / SI">
 
-<div id="reader" style="width:100%"></div>
+<div id="reader" style="margin-top:15px;"></div>
 
-<h3>Hasil Scan:</h3>
+<div class="total">Total Valid Scan: <span id="total">0</span></div>
+<div class="status" id="statusMsg"></div>
+
 <table>
-  <thead>
-    <tr>
-      <th>No</th>
-      <th>Barcode</th>
-      <th>Edit</th>
-      <th>Delete</th>
-    </tr>
-  </thead>
-  <tbody id="resultTable"></tbody>
+<thead>
+<tr>
+<th>No</th>
+<th>Barcode</th>
+<th>Aksi</th>
+</tr>
+</thead>
+<tbody id="tableBody"></tbody>
 </table>
 
-<button onclick="saveData()">SAVE</button>
-<button onclick="resetForm()">RESET</button>
+<button class="success" onclick="saveData()">SAVE & LOCK DN</button>
+<button class="danger" onclick="resetAll()">RESET</button>
+
+</div>
 
 <script>
-let scannedData = [];
 
-function onScanSuccess(decodedText) {
-  let waktu = new Date().toLocaleString();
-  scannedData.push({ barcode: decodedText, waktu: waktu });
-  renderTable();
-}
+let data=[];
+let barcodeSet=new Set();
+let lock=false;
+let editingIndex=-1;
 
-function renderTable() {
-  let table = document.getElementById("resultTable");
-  table.innerHTML = "";
+function onScanSuccess(decodedText){
 
-  scannedData.forEach((item, index) => {
-    table.innerHTML += `
-      <tr>
-        <td>${index + 1}</td>
-        <td contenteditable="true" oninput="editBarcode(${index}, this.innerText)">
-          ${item.barcode}
-        </td>
-        <td><button class="small" onclick="editFocus(${index})">Edit</button></td>
-        <td><button class="small" onclick="deleteRow(${index})">X</button></td>
-      </tr>
-    `;
-  });
-}
+  if(lock) return;
 
-function editBarcode(index, value) {
-  scannedData[index].barcode = value;
-}
+  let barcode=decodedText.trim();
 
-function editFocus(index) {
-  alert("Silakan edit langsung pada kolom barcode.");
-}
-
-function deleteRow(index) {
-  scannedData.splice(index, 1);
-  renderTable();
-}
-
-function saveData() {
-  let user = document.getElementById("user").value;
-  let dn = document.getElementById("dn").value;
-
-  if (!user || !dn) {
-    alert("Nama dan DN harus diisi!");
+  // VALIDASI MINIMAL 7 DIGIT
+  if(barcode.length < 7){
+    showStatus("❌ Barcode kurang dari 7 digit - DITOLAK","red");
     return;
   }
 
-  scannedData.forEach(item => {
-    let formData = new FormData();
-    
-    formData.append("entry.1225395461", user); // GANTI ENTRY
-    formData.append("entry.1370295395", dn);   // GANTI ENTRY
-    formData.append("entry.593393835", item.barcode); // GANTI ENTRY
-    formData.append("entry.908329718", item.waktu);   // GANTI ENTRY
+  // VALIDASI DUPLICATE
+  if(barcodeSet.has(barcode)){
+    showStatus("❌ Barcode duplicate - DITOLAK","red");
+    return;
+  }
 
-    fetch("https://docs.google.com/forms/d/e/1FAIpQLScHVUa6eQf4U7DDvBzGZB58Z1TgB_FlYWfb_4_CjMwuq56Hiw/formResponse", {
-      method: "POST",
-      mode: "no-cors",
-      body: formData
+  lock=true;
+
+  barcodeSet.add(barcode);
+  data.push(barcode);
+  renderTable();
+  showStatus("✅ Barcode valid berhasil discan","green");
+
+  if(navigator.vibrate){
+    navigator.vibrate(300);
+  }
+
+  setTimeout(()=>{lock=false;},5000);
+}
+
+function renderTable(){
+  let table=document.getElementById("tableBody");
+  table.innerHTML="";
+
+  data.forEach((barcode,index)=>{
+    table.innerHTML+=`
+      <tr>
+        <td>${index+1}</td>
+        <td>${barcode}</td>
+        <td>
+          <button class="warning" onclick="editRow(${index})">Edit</button>
+          <button class="danger" onclick="deleteRow(${index})">Delete</button>
+        </td>
+      </tr>
+    `;
+  });
+
+  document.getElementById("total").innerText=data.length;
+}
+
+function editRow(index){
+  let newBarcode=prompt("Edit Barcode:",data[index]);
+  if(!newBarcode) return;
+
+  if(newBarcode.length < 7){
+    alert("Barcode minimal 7 digit!");
+    return;
+  }
+
+  if(barcodeSet.has(newBarcode)){
+    alert("Barcode duplicate!");
+    return;
+  }
+
+  barcodeSet.delete(data[index]);
+  data[index]=newBarcode;
+  barcodeSet.add(newBarcode);
+  renderTable();
+}
+
+function deleteRow(index){
+  barcodeSet.delete(data[index]);
+  data.splice(index,1);
+  renderTable();
+}
+
+function saveData(){
+
+  let user=document.getElementById("user").value;
+  let dn=document.getElementById("dn").value;
+
+  if(!user || !dn){
+    alert("User dan DN wajib diisi!");
+    return;
+  }
+
+  if(data.length==0){
+    alert("Belum ada data scan!");
+    return;
+  }
+
+  data.forEach(barcode=>{
+
+    let waktu=new Date().toLocaleString();
+
+    let formData=new FormData();
+    formData.append("entry.1225395461",user); 
+    formData.append("entry.1370295395",dn);   
+    formData.append("entry.593393835",barcode); 
+    formData.append("entry.908329718",waktu);  
+
+    fetch("https://docs.google.com/forms/d/e/1FAIpQLScHVUa6eQf4U7DDvBzGZB58Z1TgB_FlYWfb_4_CjMwuq56Hiw/viewform?usp=preview/formResponse",{
+      method:"POST",
+      mode:"no-cors",
+      body:formData
     });
+
   });
 
   alert("Data berhasil dikirim!");
 
-  // 🔒 LOCK DN & USER
-  document.getElementById("dn").readOnly = true;
-  document.getElementById("user").readOnly = true;
+  document.getElementById("dn").readOnly=true;
+  document.getElementById("user").readOnly=true;
 
-  scannedData = [];
+  data=[];
+  barcodeSet.clear();
   renderTable();
 }
 
-function resetForm() {
-  document.getElementById("dn").readOnly = false;
-  document.getElementById("user").readOnly = false;
-  document.getElementById("dn").value = "";
-  document.getElementById("user").value = "";
-  scannedData = [];
+function resetAll(){
+  document.getElementById("dn").readOnly=false;
+  document.getElementById("user").readOnly=false;
+  document.getElementById("dn").value="";
+  document.getElementById("user").value="";
+  data=[];
+  barcodeSet.clear();
   renderTable();
+  showStatus("System Reset","black");
 }
 
-let scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+function showStatus(message,color){
+  let msg=document.getElementById("statusMsg");
+  msg.innerText=message;
+  msg.style.color=color;
+}
+
+let scanner=new Html5QrcodeScanner("reader",{fps:10,qrbox:250});
 scanner.render(onScanSuccess);
-</script>
 
+</script>
 </body>
 </html>
